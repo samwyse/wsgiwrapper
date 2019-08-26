@@ -1,0 +1,3 @@
+I create a lot of tools to help me get my job done quickly and efficiently. These tools are generally command-line driven (because I am a follower of the UNIX philosophy) and are written in Python (because it is the best language for creating such tools). The only problem (and it is a good problem to have) is that non-programmers see me using my tools and wish to use them themselves, preferably via a web GUI.
+
+This tool will turn command line Python scripts into WSGI web applications. The original script is used un-changed; the only requirement is that you must adhere to a certain style of programming. 
