@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{SCRIPT_NAME}}{{PATH_INFO}}</title>
+    <meta content='width=device-width, initial-scale=1' name='viewport' />
+<style>
+body {
+    margin: 0;
+    padding: 0;
+    font-family: verdana, sans-serif;
+    background-color: #eeeeee;
+}
+.button_bar input {
+    background-color: #f3feef;
+    border: 1px solid #000000;
+    cursor: pointer;
+}
+.button_bar input[type="Submit"] {
+    background-color: #99ff99;
+}
+.button_bar,.fieldset,.legend {
+    padding: 1em;
+    box-shadow: 0 0 0 1px #007db8;
+    margin: 1em;
+    font-family: verdana, helvetica, arial;
+}
+.button_bar,.fieldset {
+    background-color: #f0f0f0;
+}
+.description {
+    padding: 1em;
+    margin: 0;
+}
+.form {
+    background: #fff;
+}
+.fieldset {
+    display:grid;
+    grid-template:auto / 1fr 3fr 5fr;
+    grid-gap:10px;
+}
+.label { }
+.legend,.description {
+    background-color: #0038a8;
+    color: #fff;
+    font-size: 10pt;
+    font-weight: bold;
+    }
+.legend {
+    margin-bottom: 0;
+    padding: .5em 1em .5em 1em;
+}
+    </style>
+    {{#script}}<script type="text/javascript">{{{.}}}</script>{{/script}}
+  </head>
+  <body>
+    {{#error}}<div style="background-color:#c00000;">{{{.}}}</div>{{/error}}
+    {{#prologue}}<div>{{{.}}}</div>{{/prologue}}
+{{{form}}}
+    {{#epilogue}}<div>{{{.}}}</div>{{/epilogue}}
+  </body>
+</html>
