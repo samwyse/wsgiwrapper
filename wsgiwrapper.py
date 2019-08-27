@@ -101,6 +101,7 @@ function of the CLI program.
     defaults = {
         'form_name': '',
         'prefix': None,
+        'overrides': {},
         'skip_groups': [],
         'submit_actions': {
             argparse._HelpAction,
@@ -200,6 +201,11 @@ function of the CLI program.
                 input.setAttribute('placeholder', placeholder)
                 if action.required or action.nargs == argparse.ONE_OR_MORE:
                     input.setAttribute('required', None)
+                if dest+‘.onblur’ in overrides:
+                    # TODO: fix this
+                    jscmd = overrides[dest+‘.onblur’] % dest
+                    input.setAttribute('onblur', jscmd)
+                    self.scripts.add('copy_v')
                 if isinstance(action.nargs, int):
                     item = Div(id=dest+'.lst')
                     for _ in range(action.nargs+1):
@@ -240,13 +246,6 @@ function of the CLI program.
                 fieldset += legend
 
         assert len(output_files) < 2
-
-        if self.form_name == 'hosts':
-            # TODO: fix this
-            i_dest, i_elem = 'csvfile', input_files['csvfile']
-            o_dest, o_elem = 'zipfile', output_files['zipfile']
-            i_elem.setAttribute('onblur', 'copy_v("%s","%s")'%(i_dest,o_dest))
-            self.scripts.add('copy_v')
 
         button_bar += Input(type="submit"), Input(type="reset")
         form += NL
@@ -327,7 +326,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                     value = fieldstorage.getfirst(dest, action.default)
                 else:
                     value = fieldstorage.getlist(dest) or [action.default]
-                    if dest == 'expansion':  # TODO: fix this
+                    if dest+'.split' in self.overrides:
                         value = value[0].split()
                 if action.type:
                     if isinstance(action.type, argparse.FileType):
@@ -452,6 +451,10 @@ def process(args):
     the_process = getattr(mod, args.process)
     the_app = wsgiwrapper(the_parser, the_process,
         form_name=args.mod,
+        overrides={
+            ‘csvfile.onblur’: 'copy_v("%s","zipfile")'
+            ‘expansion.split’: True,
+            },
         prefix=args.prefix,
         skip_groups=args.skip_groups,
         )
