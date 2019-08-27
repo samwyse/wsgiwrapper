@@ -201,11 +201,12 @@ function of the CLI program.
                 input.setAttribute('placeholder', placeholder)
                 if action.required or action.nargs == argparse.ONE_OR_MORE:
                     input.setAttribute('required', None)
-                if dest+‘.onblur’ in overrides:
-                    # TODO: fix this
-                    jscmd = overrides[dest+‘.onblur’] % dest
-                    input.setAttribute('onblur', jscmd)
-                    self.scripts.add('copy_v')
+                if dest+‘.onevent’ in overrides:
+                    for event, jscmd in overrides[dest+‘.onevent’]:
+                        input.setAttribute(event, jscmd % fest)
+                        mobj = re.search(r’(\w+)\(‘)
+                        if mobj:
+                            self.scripts.add(mobj.group(1))
                 if isinstance(action.nargs, int):
                     item = Div(id=dest+'.lst')
                     for _ in range(action.nargs+1):
@@ -452,7 +453,10 @@ def process(args):
     the_app = wsgiwrapper(the_parser, the_process,
         form_name=args.mod,
         overrides={
-            ‘csvfile.onblur’: 'copy_v("%s","zipfile")'
+            # TODO: https://stackoverflow.com/a/5849454/603136
+            ‘csvfile.onevent’: {
+                ‘onblur‘: 'copy_v("%s","zipfile")',
+                },
             ‘expansion.split’: True,
             },
         prefix=args.prefix,
