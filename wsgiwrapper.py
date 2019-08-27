@@ -5,6 +5,11 @@
 # Insure maximum compatibility between Python 2 and 3
 from __future__ import absolute_import, division, print_function
 
+__version__ = 0.4
+__copyright__ = "Copyright 2019 Samuel T. Denton, III"
+__author__ = "Samuel T. Denton, III <sam.denton@emc.com>"
+__contributors__ = []
+
 # Python standard libraries
 from functools import partial
 from itertools import count
