@@ -39,7 +39,7 @@ similar a class instance.
     return wrapper
 
 @add_self
-@setattrs(cwd=os.getcwd(), home=os.path.expanduser('~'))
+@setattrs(cwd=os.getcwd(), home=os.path.expanduser('~'), stderr=sys.stderr)
 def print_where(*args, **kwargs):
     from inspect import currentframe
     self = kwargs.pop('self')
@@ -53,7 +53,7 @@ def print_where(*args, **kwargs):
     if fname.startswith(self.home):
         fname = '~' + fname[len(self.home):]
     print('File "%s", line %d:' % (fname, caller.f_lineno),
-        *args, file=sys.__stderr__)
+        *args, file=self.stderr)
 
 # From https://cscheid.net/2017/12/11/minimal-tracing-decorator-python-3.html
 def tracing(f):
@@ -68,21 +68,21 @@ def tracing(f):
 	fname = f.func_name
 	code = f.func_code
 	names = code.co_varnames[:code.co_argcount]
-        print("%sENTER %s:" % (ws, fname))
+        print_where("%sENTER %s:" % (ws, fname))
 	for name, value in zip(names, args):
-	    print("%s    %s: %s" % (ws, name, repr(value)[:48]))
+	    print_where("%s    %s: %s" % (ws, name, repr(value)[:48]))
         #for ix, param in enumerate(sig.parameters.values()):
-            #print("%s    %s: %s" % (ws, param.name, args[ix]))
+            #print_where("%s    %s: %s" % (ws, param.name, args[ix]))
         self.indent += 1
 	try:
             result = f(*args, **kwargs)
 	except Exception as err:
             self.indent -= 1
-            print("%sEXCEPTION %s: %r" % (ws, fname, err))
+            print_where("%sEXCEPTION %s: %r" % (ws, fname, err))
             raise
 	else:
             self.indent -= 1
-            print("%sEXIT %s, returned %r" % (ws, fname, result))
+            print_where("%sEXIT %s, returned %r" % (ws, fname, result))
         return result
     return wrapper
 
