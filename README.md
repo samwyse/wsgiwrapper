@@ -16,7 +16,7 @@ testing, as it uses wsgiref.simple_server to create a local server.
     usage: wsgiwrapper.py [-h] -m MOD [-p PARSER] [-r PROCESS] [-x PREFIX]
                           [-H HOST] [-P PORT] [-s GROUP]
     
-    Turns a command-line program in a WSGI application.
+    Turns a command-line program into a WSGI application.
     
     optional arguments:
       -h, --help            show this help message and exit
@@ -44,5 +44,5 @@ which can be handed off to any WSGI-compliant server.
     import example
     
     app = wsgiwrapper(
-        example.mk_parser)(),
+        example.mk_parser(),
         example.process)
