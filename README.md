@@ -9,19 +9,9 @@ Here's an example of what's needed:
         args = parser.parse_args()
         return process(args)
 
-To turn this into a WSGI app, you have two choices.  The first is to write
-a wrapper script:
-
-    import example
-    from wsgiwrapper import wsgiwrapper
-   
-    parser = example.mk_parser)()
-    process = example.process
-    app = wsgiwrapper(parse, process)
-
-Once you have the app, you can hand it off to any WSGI-compliant server.
-
-The second choice is to run wsgiwrapper as an application.
+To turn this into a WSGI app, you have two choices.  The first is to run
+wsgiwrapper as an application.  This choice is probably better during
+testing, as it uses wsgiref.simple_server to create a local server.
 
     usage: wsgiwrapper.py [-h] -m MOD [-p PARSER] [-r PROCESS] [-x PREFIX]
                           [-H HOST] [-P PORT] [-s GROUP]
@@ -37,16 +27,22 @@ The second choice is to run wsgiwrapper as an application.
       -r PROCESS, --run PROCESS
                             The function to run when the form is submitted;
                             default is process.
+      -s GROUP, --skip GROUP
+                            Specific parser groups to skip when building the form
       -x PREFIX, --prefix PREFIX
                             If set, adds prefixed "environ" and "start_response"
-                            to the wrapped application's arguments
+                            properties to the wrapped application's arguments.
       -H HOST, --host HOST  The IP address to bind to the socket; default is
                             0.0.0.0.
       -P PORT, --port PORT  The port number to bind to the socket; default is
                             8080.
-      -s GROUP, --skip GROUP
-                            Specific parser groups to skip when building the form
 
-This choice is probably better during testing, as it uses 
-wsgiref.simple_server.make_server to create a simple server.
- 
+The other choice is to write a wrapper script to create an app object,
+which can be handed off to any WSGI-compliant server.
+
+    from wsgiwrapper import wsgiwrapper
+    import example
+    
+    app = wsgiwrapper(
+        example.mk_parser)(),
+        example.process)
