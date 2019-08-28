@@ -308,6 +308,18 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 fp=environ['wsgi.input'],
                 environ=environ,
                 keep_blank_values=True)
+            try:
+                fieldstorage = cgi.FieldStorage(
+                    fp=environ['wsgi.input'],
+                    environ=environ,
+                    keep_blank_values=True)
+            except Exception:
+                # The only error I've seen generated is when
+                # wsgiref.validate is being used. See
+                # http://python.6.x6.nabble.com/Revising-environ-wsgi-input-readline-in-the-WSGI-specification-td2211999.html#a2212023
+                from traceback import format_exc
+                print_where(format_exc())
+                return []
 
             # Did the user click on a button?
             for action in self.buttons:
