@@ -5,9 +5,6 @@
 # Insure maximum compatibility between Python 2 and 3
 from __future__ import absolute_import, division, print_function
 
-__version__ = '0.4'
-__copyright__ = "Copyright 2019 Samuel T. Denton, III"
-__author__ = "Samuel T. Denton, III <sam.denton@emc.com>"
 # Metadate...
 __author__ = "Samuel T. Denton, III <sam.denton@dell.com>"
 __contributors__ = []
@@ -22,7 +19,6 @@ from functools import partial
 from itertools import count
 from importlib import import_module
 from mimetypes import guess_type
-from StringIO import StringIO
 try:
     from io import StringIO
 except ImportError:
@@ -35,12 +31,10 @@ import argparse, cgi, copy, os, sys
 import time
 
 # Python site libraries
-#from pystache.renderer import Renderer  # TODO: decouple pystache
 from pystache.renderer import Renderer  # TODO: decouple pystache
 
 # Python personal libraries
 from htmltags import *
-from utils import b64id, Backstop, print_where
 from utils import b64id, Backstop, print_where, tracing
 
 NL = '\n'
@@ -53,7 +47,6 @@ status200 = '200 OK'
 status404 = '404 Not Found'
 status500 = '500 Internal Server Error'
 
-# common HTTP types of content
 # MIME types of common types of content
 IMAGE_ICON = [
     ('Content-Type', 'image/x-icon'),
@@ -111,9 +104,6 @@ The form will contain a fieldset for each action group in the parser.
 Each fieldset will contain an <input> element for each action.
 Several buttons will be added.
 
-An HTTP POST request will parse the data returned in the form, returning
-an argparse.Namespace object.  That object will be passed to the 'run()'
-function of the CLI program.
 An HTTP POST request will parse the data returned in the form, using it
 to create an argparse.Namespace object.  That object will be passed to
 the 'run()' function of the CLI program.
@@ -224,7 +214,6 @@ the 'run()' function of the CLI program.
                 input.setAttribute('placeholder', placeholder)
                 if action.required or action.nargs == argparse.ONE_OR_MORE:
                     input.setAttribute('required', None)
-                if dest+'.onevent' in hooks:
                 if dest+'.onevent' in self.hooks:
                     for event, jscmd in hooks[dest+'.onevent']:
                         input.setAttribute(event, jscmd % fest)
@@ -316,26 +305,18 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 scripts=self.scripts,
                 form=self.form,
                 )
-            start_response(status200, headers)
             self.start_response(status200, headers)
             return [] if req_method == 'HEAD' else form_iter
 
         # The only other acceptable request is a POST.
         if req_method != 'POST':
-            start_response('403 OK', TEXT_PLAIN)
-            return
             self.start_response('405 Method Not Allowed', TEXT_PLAIN)
             return []
 
         # Guard against errors while working...
-        with Backstop(environ, start_response):
         with Backstop(environ, self.start_response):
 
             # Parse the submitted data.
-            fieldstorage = cgi.FieldStorage(
-                fp=environ['wsgi.input'],
-                environ=environ,
-                keep_blank_values=True)
             try:
                 fieldstorage = cgi.FieldStorage(
                     fp=environ['wsgi.input'],
@@ -353,18 +334,14 @@ which we can discard if we are processing, e.g., a HEAD request."""
             for action in self.buttons:
                 if action.dest in fieldstorage:
                     if isinstance(action, argparse._HelpAction):
-                        start_response(status200, TEXT_PLAIN)
                         self.start_response(status200, TEXT_PLAIN)
                         return [ parser.format_help().encode() ]
                     elif isinstance(action, argparse._VersionAction):
-                        start_response(status200, TEXT_PLAIN)
-                        return [ action.version.encode() ]
                         formatter = parser.formatter_class(parser.prog)
                         formatter.add_text(action.version)
                         self.start_response(status200, TEXT_PLAIN)
                         return [ formatter.format_help().encode() ]
                     else:
-                        start_response(status200, TEXT_PLAIN)
                         self.start_response(status200, TEXT_PLAIN)
                         return [ str(action.__class__).encode() ]
                     return
@@ -420,7 +397,6 @@ which we can discard if we are processing, e.g., a HEAD request."""
             if self.prefix is not None:
                 # drop hints that we're a web app
                 setattr(new_args, self.prefix+'environ', environ)
-                setattr(new_args, self.prefix+'start_response', start_response)
                 setattr(new_args, self.prefix+'start_response', self.start_response)
             newout = StringIO()
 
@@ -481,8 +457,6 @@ which we can discard if we are processing, e.g., a HEAD request."""
         """Overridable method to handle miscellaeous exceptions."""
         from traceback import format_exc
         self.start_response(status200, TEXT_PLAIN)
-        yield repr(err)
-        return
         print_where(format_exc())
         return []
 
@@ -513,7 +487,6 @@ def process(args):
     mod = import_module(args.mod)
     the_parser = getattr(mod, args.parser)()
     the_process = getattr(mod, args.process)
-    the_app = wsgiwrapper(the_parser, the_process,
     the_app = wsgiwrapper(
         the_parser, the_process,
         form_name=args.mod,
