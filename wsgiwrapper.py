@@ -276,6 +276,17 @@ which we can discard if we are processing, e.g., a HEAD request."""
         # TODO: treat GET with query as a post?
         req_method = environ['REQUEST_METHOD']
         if req_method in {'GET', 'HEAD'}:
+            path_info = environ['PATH_INFO']
+            if path_info == '/favicon.ico':
+                try:
+                    with open(path_info[1:], 'rb') as favicon:
+                        self.start_response(status200, IMAGE_ICON,)
+                        return [favicon.read()]
+                except:
+                    pass
+            if path_info != '/':
+                self.start_response(status404, TEXT_PLAIN,)
+                return ['Not found']
             headers, form_iter = self.mk_form(
                 self.environ,
                 scripts=self.scripts,
