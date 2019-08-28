@@ -8,7 +8,14 @@ from __future__ import absolute_import, division, print_function
 __version__ = '0.4'
 __copyright__ = "Copyright 2019 Samuel T. Denton, III"
 __author__ = "Samuel T. Denton, III <sam.denton@emc.com>"
+# Metadate...
+__author__ = "Samuel T. Denton, III <sam.denton@dell.com>"
 __contributors__ = []
+__copyright__ = "Copyright 2019 Samuel T. Denton, III"
+__version__ = '0.4'
+
+# Declutter our namespace
+__all__ = ['wsgiwrapper']
 
 # Python standard libraries
 from functools import partial
@@ -16,18 +23,25 @@ from itertools import count
 from importlib import import_module
 from mimetypes import guess_type
 from StringIO import StringIO
+try:
+    from io import StringIO
+except ImportError:
+    from StringIO import StringIO
 from wsgiref.handlers import format_date_time
 from wsgiref.headers import Headers
 from wsgiref.simple_server import make_server
+#from wsgiref.validate import validator
 import argparse, cgi, copy, os, sys
 import time
 
 # Python site libraries
 #from pystache.renderer import Renderer  # TODO: decouple pystache
+from pystache.renderer import Renderer  # TODO: decouple pystache
 
 # Python personal libraries
 from htmltags import *
 from utils import b64id, Backstop, print_where
+from utils import b64id, Backstop, print_where, tracing
 
 NL = '\n'
 QUESTION_MARK = u'u\2753'
@@ -36,9 +50,15 @@ HEAVY_MINUS_SIGN = u'u\2796'
 
 # common HTTP status codes
 status200 = '200 OK'
+status404 = '404 Not Found'
 status500 = '500 Internal Server Error'
 
 # common HTTP types of content
+# MIME types of common types of content
+IMAGE_ICON = [
+    ('Content-Type', 'image/x-icon'),
+    ('Cache-Control', 'public, max-age=31536000'),
+    ]
 TEXT_HTML = [('Content-Type', 'text/html')]
 TEXT_PLAIN = [('Content-Type', 'text/plain')]
 
@@ -94,6 +114,9 @@ Several buttons will be added.
 An HTTP POST request will parse the data returned in the form, returning
 an argparse.Namespace object.  That object will be passed to the 'run()'
 function of the CLI program.
+An HTTP POST request will parse the data returned in the form, using it
+to create an argparse.Namespace object.  That object will be passed to
+the 'run()' function of the CLI program.
 """
 
     registry = b64id()
@@ -293,15 +316,19 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 form=self.form,
                 )
             start_response(status200, headers)
+            self.start_response(status200, headers)
             return [] if req_method == 'HEAD' else form_iter
 
         # The only other acceptable request is a POST.
         if req_method != 'POST':
             start_response('403 OK', TEXT_PLAIN)
             return
+            self.start_response('405 Method Not Allowed', TEXT_PLAIN)
+            return []
 
         # Guard against errors while working...
         with Backstop(environ, start_response):
+        with Backstop(environ, self.start_response):
 
             # Parse the submitted data.
             fieldstorage = cgi.FieldStorage(
@@ -326,12 +353,18 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 if action.dest in fieldstorage:
                     if isinstance(action, argparse._HelpAction):
                         start_response(status200, TEXT_PLAIN)
+                        self.start_response(status200, TEXT_PLAIN)
                         return [ parser.format_help().encode() ]
                     elif isinstance(action, argparse._VersionAction):
                         start_response(status200, TEXT_PLAIN)
                         return [ action.version.encode() ]
+                        formatter = parser.formatter_class(parser.prog)
+                        formatter.add_text(action.version)
+                        self.start_response(status200, TEXT_PLAIN)
+                        return [ formatter.format_help().encode() ]
                     else:
                         start_response(status200, TEXT_PLAIN)
+                        self.start_response(status200, TEXT_PLAIN)
                         return [ str(action.__class__).encode() ]
                     return
 
@@ -387,6 +420,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 # drop hints that we're a web app
                 setattr(new_args, self.prefix+'environ', environ)
                 setattr(new_args, self.prefix+'start_response', start_response)
+                setattr(new_args, self.prefix+'start_response', self.start_response)
             newout = StringIO()
 
         # build the rest of the execution environment
@@ -444,9 +478,12 @@ which we can discard if we are processing, e.g., a HEAD request."""
 
     def do_exception(self, err):
         """Overridable method to handle miscellaeous exceptions."""
+        from traceback import format_exc
         self.start_response(status200, TEXT_PLAIN)
         yield repr(err)
         return
+        print_where(format_exc())
+        return []
 
 def mk_parser():
     """Build an argument parser."""
@@ -476,6 +513,8 @@ def process(args):
     the_parser = getattr(mod, args.parser)()
     the_process = getattr(mod, args.process)
     the_app = wsgiwrapper(the_parser, the_process,
+    the_app = wsgiwrapper(
+        the_parser, the_process,
         form_name=args.mod,
         hooks={
             # TODO: https://stackoverflow.com/a/5849454/603136
