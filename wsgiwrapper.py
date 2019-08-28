@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-"""Turns a command-line program in a WSGI application."""
+"""Turns a command-line program into a WSGI application."""
 
 # Insure maximum compatibility between Python 2 and 3
 from __future__ import absolute_import, division, print_function
 
-__version__ = 0.4
+__version__ = '0.4'
 __copyright__ = "Copyright 2019 Samuel T. Denton, III"
 __author__ = "Samuel T. Denton, III <sam.denton@emc.com>"
 __contributors__ = []
@@ -23,7 +23,7 @@ import argparse, cgi, copy, os, sys
 import time
 
 # Python site libraries
-#from pystache.renderer import Renderer
+#from pystache.renderer import Renderer  # TODO: decouple pystache
 
 # Python personal libraries
 from htmltags import *
@@ -84,7 +84,7 @@ def get_placeholder(action):
 
 class wsgiwrapper(object):
     """\
-Creates a WSGI application from CLI program that uses ArgumentParser.
+Creates a WSGI application from a CLI program that uses ArgumentParser.
 
 An HTTP GET request will return a form describing the parameters.
 The form will contain a fieldset for each action group in the parser.
@@ -101,7 +101,7 @@ function of the CLI program.
     defaults = {
         'form_name': '',
         'prefix': None,
-        'overrides': {},
+        'hooks': {},
         'skip_groups': [],
         'submit_actions': {
             argparse._HelpAction,
@@ -136,14 +136,14 @@ function of the CLI program.
         return selct
 
     def __init__(self, parser, runapp, **kwargs):
-        self.parser = parser
-        self.renderer = Renderer()
-        self.runapp = runapp
-        self.classes = set()
+        self.parser = parser  # The argparse object to turn into an HTML form.
+        self.runapp = runapp  # The app to run when the form is POSTed.
         for name, default in self.defaults.items():
             setattr(self, name, kwargs.get(name, default))
+        self.renderer = Renderer()  # TODO: decouple pystache
         input_files, output_files = {}, {}
         self.scripts = set()
+
         form = Form(method='post', enctype='multipart/form-data', Class="form")
         if parser.description:
             form += P(parser.description, Class="description")
@@ -201,10 +201,10 @@ function of the CLI program.
                 input.setAttribute('placeholder', placeholder)
                 if action.required or action.nargs == argparse.ONE_OR_MORE:
                     input.setAttribute('required', None)
-                if dest+‘.onevent’ in overrides:
-                    for event, jscmd in overrides[dest+‘.onevent’]:
+                if dest+'.onevent' in hooks:
+                    for event, jscmd in hooks[dest+'.onevent']:
                         input.setAttribute(event, jscmd % fest)
-                        mobj = re.search(r’(\w+)\(‘)
+                        mobj = re.search(r'(\w+)\(')
                         if mobj:
                             self.scripts.add(mobj.group(1))
                 if isinstance(action.nargs, int):
@@ -261,12 +261,12 @@ function of the CLI program.
 Returns a list of headers and a generator for the actual form data,
 which we can discard if we are processing, e.g., a HEAD request."""
         return TEXT_HTML, [ str(
-            self.renderer.render_path(
+            self.renderer.render_path(  # TODO: decouple pystache
                 'wsgiwrapper.mustache',
                 *context, **kwargs) ) ]
 
     def __call__(self, environ, start_response):
-        """Display or processs our form."""
+        """Display (GET) or processs (POST) our form."""
         self.environ = environ
         self.start_response = start_response
         parser = self.parser
@@ -327,7 +327,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                     value = fieldstorage.getfirst(dest, action.default)
                 else:
                     value = fieldstorage.getlist(dest) or [action.default]
-                    if dest+'.split' in self.overrides:
+                    if dest+'.split' in self.hooks:
                         value = value[0].split()
                 if action.type:
                     if isinstance(action.type, argparse.FileType):
@@ -428,6 +428,8 @@ which we can discard if we are processing, e.g., a HEAD request."""
 def mk_parser():
     """Build an argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s '+__version__)
     parser.add_argument('-m', '--module', dest='mod', required=True,
             help='The command line program to run as a WSGI app.')
     parser.add_argument('-p', '--parser', default='mk_parser',
@@ -452,12 +454,12 @@ def process(args):
     the_process = getattr(mod, args.process)
     the_app = wsgiwrapper(the_parser, the_process,
         form_name=args.mod,
-        overrides={
+        hooks={
             # TODO: https://stackoverflow.com/a/5849454/603136
-            ‘csvfile.onevent’: {
-                ‘onblur‘: 'copy_v("%s","zipfile")',
+            'csvfile.onevent': {
+                'onblur': 'copy_v("%s","zipfile")',
                 },
-            ‘expansion.split’: True,
+            'expansion.split': True,
             },
         prefix=args.prefix,
         skip_groups=args.skip_groups,
@@ -466,10 +468,13 @@ def process(args):
     print('listening on %s:%d...' % srv.server_address)
     srv.serve_forever()
 
-def main(args):
+def main(argv=None):
+    # Cribbed from [Python main() functions](https://www.artima.com/weblogs/viewpost.jsp?thread=4829)
+    if argv is None:
+        argv = sys.argv
     parser = mk_parser()
-    args = parser.parse_args(args)
+    args = parser.parse_args(argv)
     return process(args)
 
 if __name__ == '__main__':
-    main(['-h'])
+    sys.exit(main())
