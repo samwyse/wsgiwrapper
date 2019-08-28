@@ -225,6 +225,7 @@ the 'run()' function of the CLI program.
                 if action.required or action.nargs == argparse.ONE_OR_MORE:
                     input.setAttribute('required', None)
                 if dest+'.onevent' in hooks:
+                if dest+'.onevent' in self.hooks:
                     for event, jscmd in hooks[dest+'.onevent']:
                         input.setAttribute(event, jscmd % fest)
                         mobj = re.search(r'(\w+)\(')
