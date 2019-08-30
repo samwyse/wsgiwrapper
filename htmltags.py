@@ -57,12 +57,12 @@ class EmptyElement(object):
         'Input', 'IsIndex', 'Link', 'Meta', 'Param']
 
     def __init__(self, tagName, **attributes):
-        self.tagName = tagName
+        self.tagName = tagName.upper()
         self.attributes = attributes
         super(EmptyElement, self).__init__()
 
     def __iter__(self):
-        yield '<' + self.tagName
+        yield '<' + self.tagName.lower()
         for key, value in self.attributes.items():
             yield ' ' + key.lower()
             if value is not None:
@@ -76,16 +76,19 @@ class EmptyElement(object):
         return str(self).encode()
 
     def getAttribute(self, name):
-        return self.attributes[name]
+        return self.attributes[name.lower()]
 
     def hasAttribute(self, name):
-        return name in self.attributes
+        return name.lower() in self.attributes
 
     def removeAttribute(self, name):
-        del self.attributes[name]
+        try:
+            del self.attributes[name.lower()]
+        except:
+            pass
 
     def setAttribute(self, name, value):
-        self.attributes[name] = value
+        self.attributes[name.lower()] = value
 
 
 @import_all
@@ -117,7 +120,7 @@ class Element(EmptyElement):
         return self
     
     def __iter__(self):
-        yield '<' + self.tagName
+        yield '<' + self.tagName.lower()
         for key, value in self.attributes.items():
             yield ' ' + key.lower()
             if value is not None:
