@@ -9,7 +9,7 @@ from __future__ import absolute_import, division, print_function
 __author__ = "Samuel T. Denton, III <sam.denton@dell.com>"
 __contributors__ = []
 __copyright__ = "Copyright 2019 Samuel T. Denton, III"
-__version__ = '0.4'
+__version__ = '0.5'
 
 # Declutter our namespace
 __all__ = ['wsgiwrapper']
@@ -20,15 +20,15 @@ from itertools import count
 from importlib import import_module
 from mimetypes import guess_type
 try:
-    from io import StringIO
-except ImportError:
     from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 from wsgiref.handlers import format_date_time
 from wsgiref.headers import Headers
 from wsgiref.simple_server import make_server
 #from wsgiref.validate import validator
 import argparse, cgi, copy, os, sys
-import time
+import re, time
 
 # Python site libraries
 from pystache.renderer import Renderer  # TODO: decouple pystache
@@ -41,6 +41,9 @@ NL = '\n'
 QUESTION_MARK = u'u\2753'
 HEAVY_PLUS_SIGN = u'u\2795'
 HEAVY_MINUS_SIGN = u'u\2796'
+
+PlusButton = partial(Input, value="&#x2795;", type='button')
+MinusButton = partial(Input, value="&#x2796;", type='button')
 
 # common HTTP status codes
 status200 = '200 OK'
@@ -56,6 +59,7 @@ TEXT_HTML = [('Content-Type', 'text/html')]
 TEXT_PLAIN = [('Content-Type', 'text/plain')]
 
 js_library = {
+    ##### ----- ##### ----- ##### ----- #####
     'copy_v': r'''
 function stripext(path) {
   var rsep = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
@@ -73,13 +77,41 @@ function copy_v(srcid, dstid) {
     var src = document.getElementById(srcid),
         dst = document.getElementById(dstid);
     dst.value = stripext(src.value)+'.zip';
-}'''
+}''',
+    ##### ----- ##### ----- ##### ----- #####
+    'add_li': r'''
+function add_li(name) {
+    var ul = document.getElementById(name+'.ul'),
+        li = document.getElementById(name+'.li');
+    var copy = li.cloneNode(true);
+    copy.removeAttribute('id');
+    ul.appendChild(copy);
+}''',
+    ##### ----- ##### ----- ##### ----- #####
+    'rm_li': r'''
+function rm_li(node) {
+    while(node.tagName != 'LI') {
+        node = node.parentNode;
+    }
+    node.remove()
+}''',
+    ##### ----- ##### ----- ##### ----- #####
+    'toggle': r'''
+function toggle(node, name) {
+    while(node.tagName != 'LI') {
+        node = node.parentNode;
+    }
+    node.style.display = 'none';
+    var that = document.getElementById(name);
+    that.style.display = '';
+}''',
+    ##### ----- ##### ----- ##### ----- #####
     }
 
 
 def get_placeholder(action):
     nargs = action.nargs
-    metavars = (action.metavar, )
+    metavars = (action.metavar or action.dest.upper(), )
     if nargs is None:
         return '%s' % (1 * metavars)
     elif nargs == argparse.OPTIONAL:
@@ -93,7 +125,38 @@ def get_placeholder(action):
     elif nargs == argparse.PARSER:
         return '%s ...' % (1 * metavars)
     else:
-        return ' '.join(nargs * metavars)
+        return '%s' % (1 * metavars)
+
+def isrange(choices):
+    # Determine if a list of choices can be represented as a range.
+    if not all(isinstance(x, (int, float)) for x in choices):
+        return None
+    try:
+        start, stop = choices[0], choices[-1]+1
+        step = 1 if len(choices) < 2 else choices[1] - choices[0]
+        return start, stop, step
+    except:
+        return None
+
+def mk_select(action):
+    """Create an HTML <select> element."""
+    selct = Select()
+    if action.nargs in (argparse.ZERO_OR_MORE, argparse.ONE_OR_MORE):
+        selct.setAttribute('multiple', None)
+    if action.required:
+        selct.setAttribute('required', None)
+    defaults = action.default if isinstance(action.default, (list, tuple)) else [action.default]
+    for option in action.choices:
+        if isinstance(action.choices, dict):
+            option_str = str(action.choices[option])
+        else:
+            option_str = str(option).title()
+        ticket = cgi.escape(str(option)) if isinstance(option, basestring) else self.registry.register(option)
+        opt = Option(cgi.escape(option_str), value=ticket)
+        if option in defaults:
+            opt.setAttribute('selected', None)
+        selct += opt
+    return selct
 
 class wsgiwrapper(object):
     """\
@@ -106,7 +169,7 @@ Several buttons will be added.
 
 An HTTP POST request will parse the data returned in the form, using it
 to create an argparse.Namespace object.  That object will be passed to
-the 'run()' function of the CLI program.
+the 'process()' function of the CLI program.
 """
 
     registry = b64id()
@@ -128,26 +191,6 @@ the 'run()' function of the CLI program.
         float: 'number',
         }
 
-    def choices(self, action):
-        """Create an HTML <select> element."""
-        selct = Select()
-        if action.nargs in ('*', '+'):
-            selct.setAttribute('multiple', None)
-        if action.required:
-            selct.setAttribute('required', None)
-        defaults = action.default if isinstance(action.default, (list, tuple)) else [action.default]
-        for option in action.choices:
-            if isinstance(action.choices, dict):
-                option_str = str(action.choices[option])
-            else:
-                option_str = str(option).title()
-            ticket = cgi.escape(str(option)) if isinstance(option, basestring) else self.registry.register(option)
-            opt = Option(cgi.escape(option_str), value=ticket)
-            if option in defaults:
-                opt.setAttribute('selected', None)
-            selct += opt
-        return selct
-
     def __init__(self, parser, runapp, **kwargs):
         self.parser = parser  # The argparse object to turn into an HTML form.
         self.runapp = runapp  # The app to run when the form is POSTed.
@@ -155,7 +198,8 @@ the 'run()' function of the CLI program.
             setattr(self, name, kwargs.get(name, default))
         self.renderer = Renderer()  # TODO: decouple pystache
         input_files, output_files = {}, {}
-        self.scripts = set()
+        self.script = set()
+        self.toolbox = []
 
         form = Form(method='post', enctype='multipart/form-data', Class="form")
         if parser.description:
@@ -181,8 +225,9 @@ the 'run()' function of the CLI program.
                                 formnovalidate=None)
                         self.buttons.append(action)
                         continue
-                    elif action.choices is not None: 
-                        input = self.choices(action)
+                    triplet = isrange(action.choices) if action.choices else False
+                    if action.choices is not None and not triplet:
+                        input = mk_select(action)
                     elif isinstance(action, argparse._StoreConstAction):
                         ticket = self.registry.register(action.const)
                         input = Input(type='checkbox', value=cgi.escape(ticket))
@@ -199,12 +244,20 @@ the 'run()' function of the CLI program.
                             input = Input(type=self.type_lookup.get(action.type, 'text'))
                             if action.default:
                                 input.setAttribute('value', cgi.escape(str(action.default)))
+                            if triplet:
+                                input.setAttribute('min', triplet[0])
+                                input.setAttribute('max', triplet[1])
+                                input.setAttribute('step', triplet[2])
+                            if action.type == float:
+                                input.setAttribute('step', 'any')
                     elif isinstance(action, argparse._AppendAction):
                         continue  # TODO: implement this
                     elif isinstance(action, argparse._AppendConstAction):
                         continue  # TODO: implement this
                     elif isinstance(action, argparse._CountAction):
-                        continue  # TODO: implement this
+                        input = Input(type='number', min=0)
+                        if action.default:
+                            input.setAttribute('value', cgi.escape(str(action.default)))
                     else:
                         continue  # TODO: can we ever get here?
                 except TypeError as err:
@@ -212,21 +265,48 @@ the 'run()' function of the CLI program.
                     input = Pre(format_exc())
                 input.setAttribute('name', dest)
                 input.setAttribute('placeholder', placeholder)
-                if action.required or action.nargs == argparse.ONE_OR_MORE:
+                if action.required:
                     input.setAttribute('required', None)
-                if dest+'.onevent' in self.hooks:
-                    for event, jscmd in hooks[dest+'.onevent']:
-                        input.setAttribute(event, jscmd % fest)
-                        mobj = re.search(r'(\w+)\(')
-                        if mobj:
-                            self.scripts.add(mobj.group(1))
-                if isinstance(action.nargs, int):
-                    item = Div(id=dest+'.lst')
-                    for _ in range(action.nargs+1):
-                        item += Div(copy.copy(input))
-                    templates += Div(input, id=dest+'.tmp')
-                else:
+                handlers = self.hooks.get(dest+'.handlers', {})
+                for event, jscmd in handlers.items():
+                    input.setAttribute(event, jscmd % dest)
+                    mobj = re.search(r'(\w+)\(', jscmd)
+                    if mobj:
+                        self.script.add(mobj.group(1))
+
+                nargs = action.nargs
+                if nargs is None:
                     item = input
+                elif nargs == argparse.OPTIONAL:
+                    item = Ul(id=dest+'.ul', Class='input-ul')
+                    item += Li(PlusButton(onclick='toggle(this, "'+dest+'.li")'), id=dest+'.add')
+                    item += Li(input, MinusButton(onclick='toggle(this, "'+dest+'.add")'), id=dest+'.li', style='display:none')
+                    self.script.add('toggle')
+                elif nargs == argparse.ZERO_OR_MORE:
+                    item = Ul(id=dest+'.ul', Class='input-ul')
+                    item += Li(PlusButton(onclick='add_li("'+dest+'")'), id=dest+'.add')
+                    self.toolbox += Li(input, MinusButton(onclick='rm_li(this)'), id=dest+'.li')
+                    self.script.add('add_li')
+                    self.script.add('rm_li')
+                elif nargs == argparse.ONE_OR_MORE:
+                    first = copy.deepcopy(input)
+                    first.setAttribute('required', None)
+                    item = Ul(id=dest+'.ul', Class='input-ul')
+                    item += Li(first, PlusButton(onclick='add_li("'+dest+'")'))
+                    this_row = Li(id=dest+'.li')
+                    this_row += input, MinusButton(onclick='rm_li(this)')
+                    self.toolbox += this_row
+                    self.script.add('add_li')
+                    self.script.add('rm_li')
+                elif nargs == argparse.REMAINDER:
+                    raise NotImplementedError('nargs = %r' % nargs)
+                elif nargs == argparse.PARSER:
+                    raise NotImplementedError('nargs = %r' % nargs)
+                else:
+                    item = Ul(id=dest+'.ul', Class='input-ul')
+                    for _ in range(nargs):
+                        item += Li(copy.deepcopy(input))
+
                 row = next(row_counter) + 1
                 fieldset += NL, Label(
                     dest.replace('_', ' ').title(),
@@ -302,7 +382,8 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 return ['Not found']
             headers, form_iter = self.mk_form(
                 self.environ,
-                scripts=self.scripts,
+                script=[js_library[func] for func in self.script],
+                toolbox=self.toolbox,
                 form=self.form,
                 )
             self.start_response(status200, headers)
@@ -317,6 +398,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
         with Backstop(environ, self.start_response):
 
             # Parse the submitted data.
+            #print_where('Parse the submitted data.')
             try:
                 fieldstorage = cgi.FieldStorage(
                     fp=environ['wsgi.input'],
@@ -327,10 +409,11 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 # wsgiref.validate is being used. See
                 # http://python.6.x6.nabble.com/Revising-environ-wsgi-input-readline-in-the-WSGI-specification-td2211999.html#a2212023
                 from traceback import format_exc
-                print_where(format_exc())
+                #print_where(format_exc())
                 return []
 
             # Did the user click on a button?
+            #print_where('Did the user click on a button?')
             for action in self.buttons:
                 if action.dest in fieldstorage:
                     if isinstance(action, argparse._HelpAction):
@@ -346,10 +429,12 @@ which we can discard if we are processing, e.g., a HEAD request."""
                         return [ str(action.__class__).encode() ]
                     return
 
-            # create an argparse.Namespace from the fieldstorage
+            # Create an argparse.Namespace from the fieldstorage.
+            #print_where('Create an argparse.Namespace from the fieldstorage.')
             new_args = argparse.Namespace()
             self.output_files = {}
             for action in parser._actions:
+                #print_where('action =', action)
                 if action in self.buttons:
                     continue
                 dest = action.dest
@@ -358,25 +443,28 @@ which we can discard if we are processing, e.g., a HEAD request."""
                     value = fieldstorage.getfirst(dest, action.default)
                     value = self.registry.redeem(value)
                 elif action.nargs is None:
+                    # no nargs means there can be only one
                     value = fieldstorage.getfirst(dest, action.default)
                 else:
                     value = fieldstorage.getlist(dest) or [action.default]
                     if dest+'.split' in self.hooks:
                         value = value[0].split()
+                #print_where('value =', repr(value)[:240])
+
                 if action.type:
                     if isinstance(action.type, argparse.FileType):
                         field = fieldstorage[dest]
+                        #print_where('field =', repr(field)[:240])
                         if 'r' in action.type._mode:
                             # need to read from a file-like object
-                            try:
-                                filename = field.filename
-                            except:
-                                filename = ''
+                            filename = field.filename
+                            #print_where('filename =', repr(filename)[:240])
                             if filename:
                                 value = StringIO(field.value)
                                 value.name = filename
                             else:
-                                value = ''
+                                value = None
+                            #print_where('value =', repr(value)[:240])
                         else:
                             # create a file-like object from our text input
                             value = self.output_files[dest] = StringIO()
@@ -390,6 +478,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                             value = action.type(value)
                         except:
                             value = action.type()
+                #print_where('value =', repr(value)[:240])
 
                 # add this to our Namespace object
                 setattr(new_args, dest, value)
@@ -424,7 +513,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 status = '400 Bad Request'
                 headers, form_iter = self.mk_form(
                     self.environ,
-                    scripts=self.scripts,
+                    script=[js_library[func] for func in self.script],
                     form=self.form,
                     errors=buffer
                     )
@@ -482,7 +571,7 @@ def mk_parser():
             help='Specific parser groups to skip when building the form')
     return parser
 
-def process(args):
+def real_process(args):
     """Process the arguments."""
     mod = import_module(args.mod)
     the_parser = getattr(mod, args.parser)()
@@ -492,7 +581,7 @@ def process(args):
         form_name=args.mod,
         hooks={
             # TODO: https://stackoverflow.com/a/5849454/603136
-            'csvfile.onevent': {
+            'csvfile.handlers': {
                 'onblur': 'copy_v("%s","zipfile")',
                 },
             'expansion.split': True,
@@ -504,13 +593,20 @@ def process(args):
     print('listening on %s:%d...' % srv.server_address)
     srv.serve_forever()
 
+def process(args):
+    print("""This is the result of using a fake 'process' function.
+It exists so we can test this program against itself, without causing
+the universe to explode or anything.""")
+    print()
+    print(repr(args))
+
 def main(argv=None):
     # Cribbed from [Python main() functions](https://www.artima.com/weblogs/viewpost.jsp?thread=4829)
     if argv is None:
-        argv = sys.argv
+        argv = sys.argv[1:]
     parser = mk_parser()
     args = parser.parse_args(argv)
-    return process(args)
+    return real_process(args)
 
 if __name__ == '__main__':
     sys.exit(main())
