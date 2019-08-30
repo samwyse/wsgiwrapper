@@ -15,7 +15,7 @@ __version__ = '0.4'
 #__all__ = ['wsgiwrapper']
 
 # Python standard libraries
-import argparse
+import argparse, sys
 
 # Python site libraries
 
@@ -24,12 +24,15 @@ import argparse
 def mk_parser():
     """Build an argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--none')
-    parser.add_argument('--optional', nargs=argparse.OPTIONAL)
-    parser.add_argument('--one', nargs=argparse.ONE_OR_MORE)
-    parser.add_argument('--zero', nargs=argparse.ZERO_OR_MORE)
+    grp1 = parser.add_argument_group('None')
+    grp1.add_argument('--none')
+    grp2 = parser.add_argument_group('Enums')
+    grp2.add_argument('--optional', nargs=argparse.OPTIONAL)
+    grp2.add_argument('--one', nargs=argparse.ONE_OR_MORE)
+    grp2.add_argument('--zero', nargs=argparse.ZERO_OR_MORE)
+    grp3 = parser.add_argument_group('Integers')
     for i in 1, 2, 3:
-        parser.add_argument('--nargs%d' % i, nargs=i)
+        grp3.add_argument('--nargs%d' % i, nargs=i)
     return parser
 
 def process(args):
