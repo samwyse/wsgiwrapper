@@ -37,13 +37,15 @@ from pystache.renderer import Renderer  # TODO: decouple pystache
 from htmltags import *
 from utils import b64id, Backstop, print_where, tracing
 
+USE_TABLE = False
+
 NL = '\n'
 QUESTION_MARK = u'u\2753'
 HEAVY_PLUS_SIGN = u'u\2795'
 HEAVY_MINUS_SIGN = u'u\2796'
 
-PlusButton = partial(Input, value="&#x2795;", type='button')
-MinusButton = partial(Input, value="&#x2796;", type='button')
+PlusButton = partial(Input, type='button', value="&#x2795;", style='background-color:lightgreen')
+MinusButton = partial(Input, type='button', value="&#x2796;", style='background-color:pink')
 
 # common HTTP status codes
 status200 = '200 OK'
@@ -211,9 +213,13 @@ the 'process()' function of the CLI program.
         for action_group in parser._action_groups:
             if not action_group._group_actions:
                 continue
-            fieldset = Fieldset(Class='fieldset', Style='display: grid;')
-            row_counter = count()
+            if USE_TABLE:
+                my_grid = Table(Class="table")
+            else:
+                my_grid = Fieldset(
+                    style="display:grid; grid-template:auto / 1fr 3fr 5fr; grid-gap:10px")
 
+            row_count = 0
             for action in action_group._group_actions:
                 dest = action.dest
                 placeholder = get_placeholder(action)
@@ -280,21 +286,20 @@ the 'process()' function of the CLI program.
                 elif nargs == argparse.OPTIONAL:
                     item = Ul(id=dest+'.ul', Class='input-ul')
                     item += Li(PlusButton(onclick='toggle(this, "'+dest+'.li")'), id=dest+'.add')
-                    item += Li(input, MinusButton(onclick='toggle(this, "'+dest+'.add")'), id=dest+'.li', style='display:none')
+                    item += Li(MinusButton(onclick='toggle(this, "'+dest+'.add")'), input, id=dest+'.li', style='display:none')
                     self.script.add('toggle')
                 elif nargs == argparse.ZERO_OR_MORE:
                     item = Ul(id=dest+'.ul', Class='input-ul')
                     item += Li(PlusButton(onclick='add_li("'+dest+'")'), id=dest+'.add')
-                    self.toolbox += Li(input, MinusButton(onclick='rm_li(this)'), id=dest+'.li')
+                    self.toolbox += Li(MinusButton(onclick='rm_li(this)'), input, id=dest+'.li')
                     self.script.add('add_li')
                     self.script.add('rm_li')
                 elif nargs == argparse.ONE_OR_MORE:
                     first = copy.deepcopy(input)
                     first.setAttribute('required', None)
                     item = Ul(id=dest+'.ul', Class='input-ul')
-                    item += Li(first, PlusButton(onclick='add_li("'+dest+'")'))
-                    this_row = Li(id=dest+'.li')
-                    this_row += input, MinusButton(onclick='rm_li(this)')
+                    item += Li(PlusButton(onclick='add_li("'+dest+'")'), first)
+                    this_row = Li(MinusButton(onclick='rm_li(this)'), input, id=dest+'.li')
                     self.toolbox += this_row
                     self.script.add('add_li')
                     self.script.add('rm_li')
@@ -307,14 +312,21 @@ the 'process()' function of the CLI program.
                     for _ in range(nargs):
                         item += Li(copy.deepcopy(input))
 
-                row = next(row_counter) + 1
-                fieldset += NL, Label(
-                    dest.replace('_', ' ').title(),
-                    For=dest,
-                    Style='grid-area:%d/1' % row,
-                    Class='label')
-                item.setAttribute('style', 'grid-area:%d/2' % row)
-                fieldset += NL, item
+                if USE_TABLE:
+                    my_row = Tr()
+                    my_row += Td(Label(
+                        dest.replace('_', ' ').title(),
+                        For=dest,
+                        Class='label'))
+                    my_row += Td(item)
+                else:
+                    my_grid += NL, Label(
+                        dest.replace('_', ' ').title(),
+                        For=dest,
+                        Style='grid-area:%d/1' % (row_count+1),
+                        Class='label')
+                    item.setAttribute('style', 'grid-area:%d/2' % (row_count+1))
+                    my_grid += NL, item
                 if action.help:
                     params = dict(vars(action), prog='XYZZY')
                     for key, value in list(params.items()):
@@ -328,16 +340,23 @@ the 'process()' function of the CLI program.
                         params['choices'] = ', '.join([str(c) for c in params['choices']])
                     if isinstance(params.get('default'), list):
                         params['default'] = ', '.join([str(c) for c in params['default']])
-                    fieldset += NL, Span(action.help % params, Style='grid-area:%d/3' % row)
+                    if USE_TABLE:
+                        my_row += Td(action.help % params)
+                    else:
+                        my_grid += NL, Span(action.help % params, Style='grid-area:%d/3' % (row_count+1))
+                if USE_TABLE:
+                    my_grid += my_row
+                row_count += 1
 
-            if next(row_counter) and action_group.title not in self.skip_groups:
-                form += NL, fieldset 
-            if action_group.title:
-                legend = Legend(action_group.title,
-                        Class='legend')
+            if row_count > 0 and action_group.title not in self.skip_groups:
+                form += NL, my_grid
+                Descr = Caption if USE_TABLE else Legend
+                descr = Descr(action_group.title, Class='legend')
                 if action_group.description:
-                    legend += Br(), I(action_group.description)
-                fieldset += legend
+                    descr += Br(), I(action_group.description)
+                my_grid += descr
+            else:
+                del my_grid  # avoid memory leaks?
 
         assert len(output_files) < 2
 
