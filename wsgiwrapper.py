@@ -37,8 +37,6 @@ from pystache.renderer import Renderer  # TODO: decouple pystache
 from htmltags import *
 from utils import b64id, Backstop, print_where, tracing
 
-USE_TABLE = False
-
 NL = '\n'
 QUESTION_MARK = u'u\2753'
 HEAVY_PLUS_SIGN = u'u\2795'
@@ -184,7 +182,8 @@ the 'process()' function of the CLI program.
         'submit_actions': {
             argparse._HelpAction,
             argparse._VersionAction,
-            }
+            },
+        'use_tables': False,
         }
 
     type_lookup = {
@@ -213,7 +212,7 @@ the 'process()' function of the CLI program.
         for action_group in parser._action_groups:
             if not action_group._group_actions:
                 continue
-            if USE_TABLE:
+            if self.use_tables:
                 my_grid = Table(Class="table")
             else:
                 my_grid = Fieldset(
@@ -312,7 +311,7 @@ the 'process()' function of the CLI program.
                     for _ in range(nargs):
                         item += Li(copy.deepcopy(input))
 
-                if USE_TABLE:
+                if self.use_tables:
                     my_row = Tr()
                     my_row += Td(Label(
                         dest.replace('_', ' ').title(),
@@ -340,17 +339,17 @@ the 'process()' function of the CLI program.
                         params['choices'] = ', '.join([str(c) for c in params['choices']])
                     if isinstance(params.get('default'), list):
                         params['default'] = ', '.join([str(c) for c in params['default']])
-                    if USE_TABLE:
+                    if self.use_tables:
                         my_row += Td(action.help % params)
                     else:
                         my_grid += NL, Span(action.help % params, Style='grid-area:%d/3' % (row_count+1))
-                if USE_TABLE:
+                if self.use_tables:
                     my_grid += my_row
                 row_count += 1
 
             if row_count > 0 and action_group.title not in self.skip_groups:
                 form += NL, my_grid
-                Descr = Caption if USE_TABLE else Legend
+                Descr = Caption if self.use_tables else Legend
                 descr = Descr(action_group.title, Class='legend')
                 if action_group.description:
                     descr += Br(), I(action_group.description)
@@ -579,15 +578,17 @@ def mk_parser():
             help='The function that returns an argparser object; default is %(default)s.')
     parser.add_argument('-r', '--run', dest='process', default='process',
             help='The function to run when the form is submitted; default is %(default)s.')
+    parser.add_argument('-s', '--skip', action='append', default=[],
+            metavar='GROUP', dest='skip_groups',
+            help='Specific parser groups to skip when building the form')
     parser.add_argument('-x', '--prefix', default=None,
             help='If set, adds prefixed "environ" and "start_response" to the wrapped application\'s arguments')
     parser.add_argument('-H', '--host', default='0.0.0.0',
             help='The IP address to bind to the socket; default is %(default)s.')
     parser.add_argument('-P', '--port', type=int, default=8080,
             help='The port number to bind to the socket; default is %(default)s.')
-    parser.add_argument('-s', '--skip', action='append', default=[],
-            metavar='GROUP', dest='skip_groups',
-            help='Specific parser groups to skip when building the form')
+    parser.add_argument('-U', action='store_true', dest='use_tables',
+            help='Generate HTML using tables instead of display=grid.')
     return parser
 
 def real_process(args):
