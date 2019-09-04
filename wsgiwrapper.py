@@ -247,7 +247,9 @@ the 'process()' function of the CLI program.
                         input = mk_select(action)
                     elif isinstance(action, argparse._StoreConstAction):
                         ticket = self.registry.register(action.const)
-                        input = Input(type='checkbox', value=cgi.escape(ticket))
+                        input = Input(type='checkbox',
+                                      value=cgi.escape(ticket),
+                                      style="justify-self:left")
                     elif isinstance(action, argparse._StoreAction):
                         print_where('action is a _StoreAction')
                         if isinstance(action.type, argparse.FileType):
@@ -342,7 +344,9 @@ the 'process()' function of the CLI program.
                         For=dest,
                         Style='grid-area:%d/1' % (row_count+1),
                         Class='label')
-                    item.setAttribute('style', 'grid-area:%d/2' % (row_count+1))
+                    item.setAttribute('style',
+                                      'grid-area:%d/2' % (row_count+1) +
+                                      (';' + item.getAttribute('style') if item.hasAttribute('style') else ''))
                     my_grid += NL, item
                 if action.help:
                     params = dict(vars(action), prog='XYZZY')
@@ -656,4 +660,4 @@ def main(argv=None):
     return real_process(args)
 
 if __name__ == '__main__':
-    sys.exit(main('-m wsgiwrapper -U'.split()))
+    sys.exit(main())
