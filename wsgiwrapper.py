@@ -197,14 +197,17 @@ the 'process()' function of the CLI program.
 
     @print_where.tracing
     def __init__(self, parser, runapp, **kwargs):
+        from collections import Counter
+
         self.parser = parser  # The argparse object to turn into an HTML form.
         self.runapp = runapp  # The app to run when the form is POSTed.
-        for name, default in self.defaults.items():
-            setattr(self, name, kwargs.get(name, default))
         self.renderer = Renderer()  # TODO: decouple pystache
-        input_files, output_files = {}, {}
         self.script = set()
         self.toolbox = []
+        for name, default in self.defaults.items():
+            setattr(self, name, kwargs.get(name, default))
+        input_files, output_files = {}, {}
+        cntr = Counter()
 
         form = Form(method='post', enctype='multipart/form-data', Class="form")
         if parser.description:
@@ -225,6 +228,8 @@ the 'process()' function of the CLI program.
             row_count = 0
             for action in action_group._group_actions:
                 dest = action.dest
+                cntr[dest] += 1
+                dest_id = "%s.%d" % (dest, cntr[dest])
                 placeholder = get_placeholder(action)
 
                 try:
@@ -247,11 +252,11 @@ the 'process()' function of the CLI program.
                         print_where('action is a _StoreAction')
                         if isinstance(action.type, argparse.FileType):
                             if 'r' in action.type._mode:
-                                input = Input(type='file', id=dest)
+                                input = Input(type='file', id=dest_id)
                                 input_files[dest] = input
                             else:
                                 placeholder = 'Output file name'
-                                input = Input(id=dest)
+                                input = Input(id=dest_id)
                                 output_files[dest] = input
                         else:
                             input = Input(type=self.type_lookup.get(action.type, 'text'))
@@ -292,25 +297,26 @@ the 'process()' function of the CLI program.
                         self.script.add(mobj.group(1))
 
                 nargs = action.nargs
-                if nargs is None:
+                print_where('nargs = %r, input = %r' % (nargs, input.attributes))
+                if nargs is None or input.getAttribute('type') == 'checkbox':
                     item = input
                 elif nargs == argparse.OPTIONAL:
-                    item = Ul(id=dest+'.ul', Class='input-ul')
-                    item += Li(PlusButton(onclick='toggle(this, "'+dest+'.li")'), id=dest+'.add')
-                    item += Li(MinusButton(onclick='toggle(this, "'+dest+'.add")'), input, id=dest+'.li', style='display:none')
+                    item = Ul(id=dest_id+'.ul', Class='input-ul')
+                    item += Li(PlusButton(onclick='toggle(this, "'+dest+'.li")'), id=dest_id+'.add')
+                    item += Li(MinusButton(onclick='toggle(this, "'+dest+'.add")'), input, id=dest_id+'.li', style='display:none')
                     self.script.add('toggle')
                 elif nargs == argparse.ZERO_OR_MORE:
-                    item = Ul(id=dest+'.ul', Class='input-ul')
-                    item += Li(PlusButton(onclick='add_li("'+dest+'")'), id=dest+'.add')
-                    self.toolbox += Li(MinusButton(onclick='rm_li(this)'), input, id=dest+'.li')
+                    item = Ul(id=dest_id+'.ul', Class='input-ul')
+                    item += Li(PlusButton(onclick='add_li("'+dest+'")'), id=dest_id+'.add')
+                    self.toolbox += Li(MinusButton(onclick='rm_li(this)'), input, id=dest_id+'.li')
                     self.script.add('add_li')
                     self.script.add('rm_li')
                 elif nargs == argparse.ONE_OR_MORE:
                     first = copy.deepcopy(input)
                     first.setAttribute('required', None)
-                    item = Ul(id=dest+'.ul', Class='input-ul')
+                    item = Ul(id=dest_id+'.ul', Class='input-ul')
                     item += Li(PlusButton(onclick='add_li("'+dest+'")'), first)
-                    this_row = Li(MinusButton(onclick='rm_li(this)'), input, id=dest+'.li')
+                    this_row = Li(MinusButton(onclick='rm_li(this)'), input, id=dest_id+'.li')
                     self.toolbox += this_row
                     self.script.add('add_li')
                     self.script.add('rm_li')
@@ -319,7 +325,7 @@ the 'process()' function of the CLI program.
                 elif nargs == argparse.PARSER:
                     raise NotImplementedError('nargs = %r' % nargs)
                 else:
-                    item = Ul(id=dest+'.ul', Class='input-ul')
+                    item = Ul(id=dest_id+'.ul', Class='input-ul')
                     for _ in range(nargs):
                         item += Li(copy.deepcopy(input))
 
