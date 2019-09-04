@@ -36,6 +36,7 @@ from pystache.renderer import Renderer  # TODO: decouple pystache
 # Python personal libraries
 from htmltags import *
 from utils import b64id, Backstop, print_where, tracing
+from utils import b64id, Backstop, print_where
 
 NL = '\n'
 QUESTION_MARK = u'u\2753'
@@ -109,6 +110,7 @@ function toggle(node, name) {
     }
 
 
+@print_where.tracing
 def get_placeholder(action):
     nargs = action.nargs
     metavars = (action.metavar or action.dest.upper(), )
@@ -127,6 +129,7 @@ def get_placeholder(action):
     else:
         return '%s' % (1 * metavars)
 
+@print_where.tracing
 def isrange(choices):
     # Determine if a list of choices can be represented as a range.
     if not all(isinstance(x, (int, float)) for x in choices):
@@ -138,6 +141,7 @@ def isrange(choices):
     except:
         return None
 
+@print_where.tracing
 def mk_select(action):
     """Create an HTML <select> element."""
     selct = Select()
@@ -192,6 +196,7 @@ the 'process()' function of the CLI program.
         float: 'number',
         }
 
+    @print_where.tracing
     def __init__(self, parser, runapp, **kwargs):
         self.parser = parser  # The argparse object to turn into an HTML form.
         self.runapp = runapp  # The app to run when the form is POSTed.
@@ -225,18 +230,22 @@ the 'process()' function of the CLI program.
 
                 try:
                     if isinstance(action, tuple(self.submit_actions)):
+                        print_where('action in submit_actions')
                         button_bar += Input(type="submit", name=dest,
                                 value=cgi.escape(dest.title()),
                                 formnovalidate=None)
                         self.buttons.append(action)
                         continue
                     triplet = isrange(action.choices) if action.choices else False
+                    print_where('triplet = %r' % triplet)
                     if action.choices is not None and not triplet:
+                        print_where('action requires <select>')
                         input = mk_select(action)
                     elif isinstance(action, argparse._StoreConstAction):
                         ticket = self.registry.register(action.const)
                         input = Input(type='checkbox', value=cgi.escape(ticket))
                     elif isinstance(action, argparse._StoreAction):
+                        print_where('action is a _StoreAction')
                         if isinstance(action.type, argparse.FileType):
                             if 'r' in action.type._mode:
                                 input = Input(type='file', id=dest)
@@ -256,14 +265,18 @@ the 'process()' function of the CLI program.
                             if action.type == float:
                                 input.setAttribute('step', 'any')
                     elif isinstance(action, argparse._AppendAction):
+                        print_where('action is a _AppendAction')
                         continue  # TODO: implement this
                     elif isinstance(action, argparse._AppendConstAction):
+                        print_where('action is a _AppendConstAction')
                         continue  # TODO: implement this
                     elif isinstance(action, argparse._CountAction):
+                        print_where('action is a _CountAction')
                         input = Input(type='number', min=0)
                         if action.default:
                             input.setAttribute('value', cgi.escape(str(action.default)))
                     else:
+                        print_where('should never be here')
                         continue  # TODO: can we ever get here?
                 except TypeError as err:
                     from traceback import format_exc
@@ -366,6 +379,7 @@ the 'process()' function of the CLI program.
             form += P(parser.epilog, Class="epilog")
         self.form = form
 
+    @print_where.tracing
     def mk_form(self, *context, **kwargs):
         """Overridable method to generate our form.
 
@@ -376,6 +390,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 'wsgiwrapper.mustache',
                 *context, **kwargs) ) ]
 
+    @print_where.tracing
     def __call__(self, environ, start_response):
         """Display (GET) or processs (POST) our form."""
         self.environ = environ
@@ -416,7 +431,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
         with Backstop(environ, self.start_response):
 
             # Parse the submitted data.
-            #print_where('Parse the submitted data.')
+            print_where('Parse the submitted data.')
             try:
                 fieldstorage = cgi.FieldStorage(
                     fp=environ['wsgi.input'],
@@ -427,11 +442,11 @@ which we can discard if we are processing, e.g., a HEAD request."""
                 # wsgiref.validate is being used. See
                 # http://python.6.x6.nabble.com/Revising-environ-wsgi-input-readline-in-the-WSGI-specification-td2211999.html#a2212023
                 from traceback import format_exc
-                #print_where(format_exc())
+                print_where(format_exc())
                 return []
 
             # Did the user click on a button?
-            #print_where('Did the user click on a button?')
+            print_where('Did the user click on a button?')
             for action in self.buttons:
                 if action.dest in fieldstorage:
                     if isinstance(action, argparse._HelpAction):
@@ -448,11 +463,11 @@ which we can discard if we are processing, e.g., a HEAD request."""
                     return
 
             # Create an argparse.Namespace from the fieldstorage.
-            #print_where('Create an argparse.Namespace from the fieldstorage.')
+            print_where('Create an argparse.Namespace from the fieldstorage.')
             new_args = argparse.Namespace()
             self.output_files = {}
             for action in parser._actions:
-                #print_where('action =', action)
+                print_where('action =', action)
                 if action in self.buttons:
                     continue
                 dest = action.dest
@@ -467,22 +482,22 @@ which we can discard if we are processing, e.g., a HEAD request."""
                     value = fieldstorage.getlist(dest) or [action.default]
                     if dest+'.split' in self.hooks:
                         value = value[0].split()
-                #print_where('value =', repr(value)[:240])
+                print_where('value =', repr(value)[:240])
 
                 if action.type:
                     if isinstance(action.type, argparse.FileType):
                         field = fieldstorage[dest]
-                        #print_where('field =', repr(field)[:240])
+                        print_where('field =', repr(field)[:240])
                         if 'r' in action.type._mode:
                             # need to read from a file-like object
                             filename = field.filename
-                            #print_where('filename =', repr(filename)[:240])
+                            print_where('filename =', repr(filename)[:240])
                             if filename:
                                 value = StringIO(field.value)
                                 value.name = filename
                             else:
                                 value = None
-                            #print_where('value =', repr(value)[:240])
+                            print_where('value =', repr(value)[:240])
                         else:
                             # create a file-like object from our text input
                             value = self.output_files[dest] = StringIO()
@@ -496,7 +511,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
                             value = action.type(value)
                         except:
                             value = action.type()
-                #print_where('value =', repr(value)[:240])
+                print_where('value =', repr(value)[:240])
 
                 # add this to our Namespace object
                 setattr(new_args, dest, value)
@@ -524,6 +539,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
         except Exception as err:
             return self.do_exception(err)
 
+    @print_where.tracing
     def do_sys_exit(self, err, newout):
         with Backstop(self.environ, self.start_response):
             buffer = newout.getvalue()
@@ -560,6 +576,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
         self.start_response(status, headers)
         return form_iter
 
+    @print_where.tracing
     def do_exception(self, err):
         """Overridable method to handle miscellaeous exceptions."""
         from traceback import format_exc
@@ -567,6 +584,7 @@ which we can discard if we are processing, e.g., a HEAD request."""
         print_where(format_exc())
         return []
 
+@print_where.tracing
 def mk_parser():
     """Build an argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -580,17 +598,18 @@ def mk_parser():
             help='The function to run when the form is submitted; default is %(default)s.')
     parser.add_argument('-s', '--skip', action='append', default=[],
             metavar='GROUP', dest='skip_groups',
-            help='Specific parser groups to skip when building the form')
+            help='Specific parser groups to skip when building the form.')
     parser.add_argument('-x', '--prefix', default=None,
-            help='If set, adds prefixed "environ" and "start_response" to the wrapped application\'s arguments')
+            help='If set, adds prefixed "environ" and "start_response" to the wrapped application\'s arguments.')
     parser.add_argument('-H', '--host', default='0.0.0.0',
             help='The IP address to bind to the socket; default is %(default)s.')
     parser.add_argument('-P', '--port', type=int, default=8080,
             help='The port number to bind to the socket; default is %(default)s.')
     parser.add_argument('-U', action='store_true', dest='use_tables',
-            help='Generate HTML using tables instead of display=grid.')
+            help='Generate HTML using tables instead of "display=grid".')
     return parser
 
+@print_where.tracing
 def real_process(args):
     """Process the arguments."""
     mod = import_module(args.mod)
@@ -608,11 +627,13 @@ def real_process(args):
             },
         prefix=args.prefix,
         skip_groups=args.skip_groups,
+        use_tables=args.use_tables,
         )
     srv = make_server(args.host, args.port, the_app)
     print('listening on %s:%d...' % srv.server_address)
     srv.serve_forever()
 
+@print_where.tracing
 def process(args):
     print("""This is the result of using a fake 'process' function.
 It exists so we can test this program against itself, without causing
@@ -620,6 +641,7 @@ the universe to explode or anything.""")
     print()
     print(repr(args))
 
+@print_where.tracing
 def main(argv=None):
     # Cribbed from [Python main() functions](https://www.artima.com/weblogs/viewpost.jsp?thread=4829)
     if argv is None:
@@ -629,4 +651,4 @@ def main(argv=None):
     return real_process(args)
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main('-m wsgiwrapper -U'.split()))

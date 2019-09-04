@@ -17,74 +17,77 @@ import struct, base64
 def setattrs(**kwargs):
     """\
 Add arbitrary attributes to a function, allowing externally visible
-values to be associated with a function without polluting the global
-namespace.
+values to be associated with a function, thus avoiding polluting the
+global namespace.
 """
     def setter(f):
-	for k, v in kwargs.items():
+        for k, v in kwargs.items():
             setattr(f, k, v)
         return f
     return setter
 
-def add_self(f):
-    """\
-Add a 'self' parameter to a function, pointing to the function itself,
-allowing the function to access its attributes and otherwise appear
-similar a class instance.
-"""
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-	kwargs['self'] = f
-        return f(*args, **kwargs)
-    return wrapper
+class PrintWhere(object):
+    cwd=os.getcwd()
+    home=os.path.expanduser('~')
+    stderr=sys.stderr
+    tron = False
 
-@add_self
-@setattrs(cwd=os.getcwd(), home=os.path.expanduser('~'), stderr=sys.stderr)
-def print_where(*args, **kwargs):
-    from inspect import currentframe
-    self = kwargs.pop('self')
-    caller = currentframe()
-    here = caller.f_code.co_filename
-    while caller.f_code.co_filename == here:
-        caller = caller.f_back
-    fname = caller.f_code.co_filename
-    if fname.startswith(self.cwd):
-        fname = '.' + fname[len(self.cwd):]
-    if fname.startswith(self.home):
-        fname = '~' + fname[len(self.home):]
-    print('File "%s", line %d:' % (fname, caller.f_lineno),
-        *args, file=self.stderr)
+    def __call__(self, *args, **kwargs):
+        if kwargs.pop('tron', self.tron):
+            from inspect import currentframe
+            caller = currentframe()
+            here = caller.f_code.co_filename
+            while caller.f_code.co_filename == here:
+                caller = caller.f_back
+            fname = caller.f_code.co_filename
+            if fname.startswith(self.cwd):
+                fname = '.' + fname[len(self.cwd):]
+            if fname.startswith(self.home):
+                fname = '~' + fname[len(self.home):]
+            print('File "%s", line %d:' % (fname, caller.f_lineno),
+                *args, file=self.stderr)
 
-# From https://cscheid.net/2017/12/11/minimal-tracing-decorator-python-3.html
-def tracing(f):
-    #from inspect import signature
-    #sig = signature(f)
-    @add_self
-    @setattrs(indent=0)
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        self = kwargs.pop('self')
-        ws = ' ' * (self.indent * 2)
-	fname = f.func_name
-	code = f.func_code
-	names = code.co_varnames[:code.co_argcount]
-        print_where("%sENTER %s:" % (ws, fname))
-	for name, value in zip(names, args):
-	    print_where("%s    %s: %s" % (ws, name, repr(value)[:48]))
-        #for ix, param in enumerate(sig.parameters.values()):
-            #print_where("%s    %s: %s" % (ws, param.name, args[ix]))
-        self.indent += 1
-	try:
-            result = f(*args, **kwargs)
-	except Exception as err:
-            self.indent -= 1
-            print_where("%sEXCEPTION %s: %r" % (ws, fname, err))
-            raise
-	else:
-            self.indent -= 1
-            print_where("%sEXIT %s, returned %r" % (ws, fname, result))
-        return result
-    return wrapper
+    def repr(self, obj):
+        s = repr(obj)
+        if len(s) > 32:
+            s = s[:32] + '...'
+        return s
+
+    # From https://cscheid.net/2017/12/11/minimal-tracing-decorator-python-3.html
+    def tracing(self, f):
+        #from inspect import signature
+        #sig = signature(f)
+        if self.tron:
+            self.indent = 0
+            
+            @wraps(f)
+            def wrapper(*args, **kwargs):
+                ws = ' ' * (self.indent * 2)
+                fname = f.func_name
+                code = f.func_code
+                names = code.co_varnames[:code.co_argcount]
+                self("%sENTER %s:" % (ws, fname))
+                for name, value in zip(names, args):
+                    self("%s    %s: %s" % (ws, name, self.repr(value)))
+                #for ix, param in enumerate(sig.parameters.values()):
+                    #print_where("%s    %s: %s" % (ws, param.name, args[ix]))
+                self.indent += 1
+                try:
+                    result = f(*args, **kwargs)
+                except Exception as err:
+                    self.indent -= 1
+                    self("%sEXCEPTION %s: %r" % (ws, fname, err))
+                    raise
+                else:
+                    self.indent -= 1
+                    self("%sEXIT %s, returned %r" % (ws, fname, self.repr(result)))
+                return result
+            
+            return wrapper
+        else:
+            return f
+
+print_where = PrintWhere()
 
 class b64id(object):
     def __init__(self):
