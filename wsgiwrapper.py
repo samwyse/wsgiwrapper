@@ -96,14 +96,18 @@ function rm_li(node) {
     node.remove()
 }''',
     ##### ----- ##### ----- ##### ----- #####
-    'toggle': r'''
-function toggle(node, name) {
+    'hide_li': r'''
+function hide_li(node) {
     while(node.tagName != 'LI') {
         node = node.parentNode;
     }
     node.style.display = 'none';
-    var that = document.getElementById(name);
-    that.style.display = '';
+}''',
+    ##### ----- ##### ----- ##### ----- #####
+    'show_li': r'''
+function show_li(name) {
+    var li = document.getElementById(name+'.add');
+    li.style.display = '';
 }''',
     ##### ----- ##### ----- ##### ----- #####
     }
@@ -304,12 +308,16 @@ the 'process()' function of the CLI program.
                     item = input
                 elif nargs == argparse.OPTIONAL:
                     item = Ul(id=dest_id+'.ul', Class='input-ul')
-                    item += Li(PlusButton(onclick='toggle(this, "'+dest+'.li")'), id=dest_id+'.add')
-                    item += Li(MinusButton(onclick='toggle(this, "'+dest+'.add")'), input, id=dest_id+'.li', style='display:none')
-                    self.script.add('toggle')
+                    item += Li(PlusButton(onclick='hide_li(this);add_li("'+dest_id+'")'), id=dest_id+'.add')
+                    self.toolbox += Li(MinusButton(onclick='rm_li(this);show_li("'+dest_id+'")'),
+                                       input, id=dest_id+'.li')
+                    self.script.add('hide_li')
+                    self.script.add('show_li')
+                    self.script.add('add_li')
+                    self.script.add('rm_li')
                 elif nargs == argparse.ZERO_OR_MORE:
                     item = Ul(id=dest_id+'.ul', Class='input-ul')
-                    item += Li(PlusButton(onclick='add_li("'+dest+'")'), id=dest_id+'.add')
+                    item += Li(PlusButton(onclick='add_li("'+dest_id+'")'), id=dest_id+'.add')
                     self.toolbox += Li(MinusButton(onclick='rm_li(this)'), input, id=dest_id+'.li')
                     self.script.add('add_li')
                     self.script.add('rm_li')
@@ -317,9 +325,8 @@ the 'process()' function of the CLI program.
                     first = copy.deepcopy(input)
                     first.setAttribute('required', None)
                     item = Ul(id=dest_id+'.ul', Class='input-ul')
-                    item += Li(PlusButton(onclick='add_li("'+dest+'")'), first)
-                    this_row = Li(MinusButton(onclick='rm_li(this)'), input, id=dest_id+'.li')
-                    self.toolbox += this_row
+                    item += Li(PlusButton(onclick='add_li("'+dest_id+'")'), first)
+                    self.toolbox += Li(MinusButton(onclick='rm_li(this)'), input, id=dest_id+'.li')
                     self.script.add('add_li')
                     self.script.add('rm_li')
                 elif nargs == argparse.REMAINDER:
@@ -660,4 +667,4 @@ def main(argv=None):
     return real_process(args)
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main('-m example'.split()))
