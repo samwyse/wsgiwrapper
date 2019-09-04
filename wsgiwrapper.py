@@ -35,7 +35,6 @@ from pystache.renderer import Renderer  # TODO: decouple pystache
 
 # Python personal libraries
 from htmltags import *
-from utils import b64id, Backstop, print_where, tracing
 from utils import b64id, Backstop, print_where
 
 NL = '\n'
