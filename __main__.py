@@ -21,7 +21,6 @@ import argparse, sys
 # Python personal libraries
 from . import wsgiwrapper
 
-#@print_where.tracing
 def mk_parser():
     """Build an argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -30,14 +29,20 @@ def mk_parser():
     parser.add_argument('-m', '--module', dest='mod', required=True,
             help='The command line program to run as a WSGI app.')
     parser.add_argument('-p', '--parser', default='mk_parser',
-            help='The function that returns an argparser object; default is %(default)s.')
+            help='''The function that returns an argparser object; default is %(default)s.
+The parser will be invoked once during WSGI initialization.''')
     parser.add_argument('-r', '--run', dest='process', default='process',
-            help='The function to run when the form is submitted; default is %(default)s.')
+            help='''The function to run when the form is submitted; default is %(default)s.
+This procedure can be invoked multiple times during the lifetims of the WSGI app.''')
     parser.add_argument('-s', '--skip', action='append', default=[],
             metavar='GROUP', dest='skip_groups',
-            help='Specific parser groups to skip when building the form.')
+            help='''Specify any parser groups to skip when building the form.  Note that
+'help' and 'version' actions generate special submission buttons and are visually removed
+from their group(s).  If this results in an empty group, it is also not displayed.''')
     parser.add_argument('-x', '--prefix', default=None,
-            help='If set, adds prefixed "environ" and "start_response" to the wrapped application\'s arguments.')
+            help='''If set, adds prefixed "environ" and "start_response" to the wrapped
+application\'s arguments. This provides a hint to the application that it is running as
+a WSGI; this allows the application to, for example, format it's output as HTML.''')
     parser.add_argument('-H', '--host', default='0.0.0.0',
             help='The IP address to bind to the socket; default is %(default)s.')
     parser.add_argument('-P', '--port', type=int, default=8080,
@@ -46,7 +51,6 @@ def mk_parser():
             help='Generate HTML using tables instead of "display=grid".')
     return parser
 
-#@print_where.tracing
 def real_process(args):
     """Process the arguments."""
     mod = import_module(args.mod)
@@ -55,13 +59,6 @@ def real_process(args):
     the_app = wsgiwrapper(
         the_parser, the_process,
         form_name=args.mod,
-        hooks={
-            # TODO: https://stackoverflow.com/a/5849454/603136
-            'csvfile.handlers': {
-                'onblur': 'copy_v("%s","zipfile")',
-                },
-            'expansion.split': True,
-            },
         prefix=args.prefix,
         skip_groups=args.skip_groups,
         use_tables=args.use_tables,
@@ -70,7 +67,6 @@ def real_process(args):
     print('listening on %s:%d...' % srv.server_address)
     srv.serve_forever()
 
-#@print_where.tracing
 def process(args):
     print("""This is the result of using a fake 'process' function.
 It exists so we can test this program against itself, without causing
@@ -78,7 +74,6 @@ the universe to explode or anything.""")
     print()
     print(repr(args))
 
-#@print_where.tracing
 def main(argv=None):
     # Cribbed from [Python main() functions](https://www.artima.com/weblogs/viewpost.jsp?thread=4829)
     if argv is None:
