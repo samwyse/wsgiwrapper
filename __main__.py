@@ -26,29 +26,36 @@ def mk_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-v', '--version', action='version',
                         version='%(prog)s '+__version__)
-    parser.add_argument('-m', '--module', dest='mod', required=True,
-            help='The command line program to run as a WSGI app.')
-    parser.add_argument('-p', '--parser', default='mk_parser',
+    options = parser.add_argument_group('Wrapper configuration',
+            'Specify how to create the web application.')
+    options.add_argument('-m', '--module', dest='mod', required=True,
+            help='''The command line program to run as a WSGI app.
+This is required.''')
+    options.add_argument('-p', '--parser', default='mk_parser',
             help='''The function that returns an argparser object; default is %(default)s.
-The parser will be invoked once during WSGI initialization.''')
-    parser.add_argument('-r', '--run', dest='process', default='process',
+The parser will be invoked once during WSGI initialization.
+Defaults to "%(default)s".''')
+    options.add_argument('-r', '--run', dest='process', default='process',
             help='''The function to run when the form is submitted; default is %(default)s.
-This procedure can be invoked multiple times during the lifetims of the WSGI app.''')
-    parser.add_argument('-s', '--skip', action='append', default=[],
+This procedure can be invoked multiple times during the lifetims of the WSGI app.
+Defaults to "%(default)s."''')
+    options.add_argument('-s', '--skip', action='append', default=[],
             metavar='GROUP', dest='skip_groups',
             help='''Specify any parser groups to skip when building the form.  Note that
 'help' and 'version' actions generate special submission buttons and are visually removed
 from their group(s).  If this results in an empty group, it is also not displayed.''')
-    parser.add_argument('-x', '--prefix', default=None,
+    options.add_argument('-u', '--use-tables', action='store_true',
+            help='Generate HTML using tables instead of "display=grid".')
+    options.add_argument('-x', '--prefix', default=None,
             help='''If set, adds prefixed "environ" and "start_response" to the wrapped
 application\'s arguments. This provides a hint to the application that it is running as
 a WSGI; this allows the application to, for example, format it's output as HTML.''')
-    parser.add_argument('-H', '--host', default='0.0.0.0',
+    server = parser.add_argument_group('Server configuration',
+            'Specify web server characteristics.')
+    server.add_argument('-H', '--host', default='0.0.0.0',
             help='The IP address to bind to the socket; default is %(default)s.')
-    parser.add_argument('-P', '--port', type=int, default=8080,
+    server.add_argument('-P', '--port', type=int, default=8080,
             help='The port number to bind to the socket; default is %(default)s.')
-    parser.add_argument('-U', action='store_true', dest='use_tables',
-            help='Generate HTML using tables instead of "display=grid".')
     return parser
 
 def real_process(args):
