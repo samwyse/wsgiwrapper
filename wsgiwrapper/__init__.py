@@ -4,6 +4,10 @@
 
 # Insure maximum compatibility between Python 2 and 3
 from __future__ import absolute_import, division, print_function
+try:
+    basestring
+except NameError:
+    basestring = str
 
 # Metadate...
 __author__ = "Samuel T. Denton, III <sam.denton@dell.com>"
