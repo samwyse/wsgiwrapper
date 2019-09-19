@@ -305,8 +305,7 @@ the 'process()' function of the CLI program.
                         self.script.add(mobj.group(1))
 
                 nargs = action.nargs
-                print_where('nargs = %r, input = %r' % (nargs, input.attributes))
-                if nargs is None or input.getAttribute('type') == 'checkbox':
+                if nargs is None or input.tagName == 'SELECT' or input.getAttribute('type') == 'checkbox':
                     item = input
                 elif nargs == argparse.OPTIONAL:
                     item = Ul(id=dest_id+'.ul', Class='input-ul')
