@@ -131,7 +131,7 @@ class Element(EmptyElement):
             yield '>'
             for item in self.childNodes:
                 yield str(item)
-            yield '</' + self.tagName+'>'
+            yield '</' + self.tagName.lower()+'>'
 
 if __name__ == '__main__':
     xyzzy = Element('xyzzy', foo='bar')
