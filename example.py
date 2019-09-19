@@ -24,15 +24,28 @@ import argparse, sys
 def mk_parser():
     """Build an argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
-    grp1 = parser.add_argument_group('None')
-    grp1.add_argument('--none')
-    grp2 = parser.add_argument_group('Enums')
-    grp2.add_argument('--optional', nargs=argparse.OPTIONAL)
-    grp2.add_argument('--one', nargs=argparse.ONE_OR_MORE)
-    grp2.add_argument('--zero', nargs=argparse.ZERO_OR_MORE)
-    grp3 = parser.add_argument_group('Integers')
+    grp = parser.add_argument_group('Interpretation of "nargs"')
+    grp.add_argument('--none', metavar='ARG')
+    grp.add_argument('--optional', metavar='ARG', nargs=argparse.OPTIONAL)
+    grp.add_argument('--zero-or-more', metavar='ARG', nargs=argparse.ZERO_OR_MORE)
+    grp.add_argument('--one-or-more', metavar='ARG', nargs=argparse.ONE_OR_MORE)
     for i in 1, 2, 3:
-        grp3.add_argument('--nargs%d' % i, nargs=i)
+        grp.add_argument('--nargs-%d' % i, metavar='ARG', nargs=i)
+    grp = parser.add_argument_group('Interpretation of "choices"')
+    grp.add_argument('--a', choices='tom dick harry'.split())
+    grp.add_argument('--b',
+                     choices='mammals birds reptiles amphibians fish'.split(),
+                     default='mammals birds'.split())
+    grp.add_argument('--c', nargs=argparse.ONE_OR_MORE,
+                     choices='tom dick harry'.split())
+    grp.add_argument('--d', nargs=argparse.ONE_OR_MORE,
+                     choices='mammals birds reptiles amphibians fish'.split(),
+                     default='mammals birds'.split())
+    grp.add_argument('--e', nargs=argparse.ZERO_OR_MORE,
+                     choices='tom dick harry'.split())
+    grp.add_argument('--f', nargs=argparse.ZERO_OR_MORE,
+                     choices='mammals birds reptiles amphibians fish'.split(),
+                     default='mammals birds'.split())
     return parser
 
 def process(args):
