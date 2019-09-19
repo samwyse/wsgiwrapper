@@ -76,7 +76,7 @@ class EmptyElement(object):
         return str(self).encode()
 
     def getAttribute(self, name):
-        return self.attributes[name.lower()]
+        return self.attributes.get(name.lower())
 
     def hasAttribute(self, name):
         return name.lower() in self.attributes
