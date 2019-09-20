@@ -32,24 +32,22 @@ def mk_parser():
             help='''The command line program to run as a WSGI app.
 This is required.''')
     options.add_argument('-p', '--parser', default='mk_parser',
-            help='''The function that returns an argparser object; default is %(default)s.
-The parser will be invoked once during WSGI initialization.
-Defaults to "%(default)s".''')
+            help='''A function that returns an argparser object; the default is "%(default)s".
+Yhis function will be called once during WSGI initialization.''')
     options.add_argument('-r', '--run', dest='process', default='process',
-            help='''The function to run when the form is submitted; default is %(default)s.
-This procedure can be invoked multiple times during the lifetims of the WSGI app.
-Defaults to "%(default)s."''')
+            help='''A function to run when the form is submitted; default is "%(default)s".
+This procedure will be invoked multiple times during the lifetims of the WSGI app.''')
     options.add_argument('-s', '--skip', action='append', default=[],
             metavar='GROUP', dest='skip_groups',
-            help='''Specify any parser groups to skip when building the form.  Note that
-'help' and 'version' actions generate special submission buttons and are visually removed
-from their group(s).  If this results in an empty group, it is also not displayed.''')
+            help='''Specify any parser groups to skip when building the form.  Note that empty
+groups are never displayed; also 'help' and 'version' actions generate submit buttons that
+are displayed separately from their group(s), which may cause their group(s) to become empty.''')
     options.add_argument('-u', '--use-tables', action='store_true',
             help='Generate HTML using tables instead of "display=grid".')
     options.add_argument('-x', '--prefix', default=None,
             help='''If set, adds prefixed "environ" and "start_response" to the wrapped
-application\'s arguments. This provides a hint to the application that it is running as
-a WSGI; this allows the application to, for example, format it's output as HTML.''')
+application\'s arguments. This can provide a hint to the application that it is running inside
+WSGI; this allows the application to, for example, format it's output as HTML.''')
     server = parser.add_argument_group('Server configuration',
             'Specify web server characteristics.')
     server.add_argument('-H', '--host', default='0.0.0.0',
